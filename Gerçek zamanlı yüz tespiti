@@ -1,0 +1,74 @@
+##Kütüphane ekleme
+import cv2
+import numpy as np
+import face_recognition
+import os
+
+
+## root değişkenine tespit edilmesi istenen yüzün fotoğraflarının bulunduğu klasör atanır
+root = "C:/Users/LAB5/PycharmProjects/face_recognation/Train"
+
+### face_cascade değişkenine opencv içerisinde default gelen haarcascade_frontalface_alt2 sınıflayıcısı atanır
+face_cascade = cv2.CascadeClassifier("C:/Users/LAB5/PycharmProjects/face_recognation/cascades/haarcascade_frontalface_alt2.xml")
+
+
+train_list = []
+encode_list = []
+
+##resimler okunur ve bir listeye atanır
+for i in os.listdir(root):
+    path = root + "/" + i
+    img = cv2.imread(path)
+    train_list.append(img)
+    
+    
+##resimlerin üzerindeki yüzler tespit edilerek yüzün kendine ait özellikleri (features) ortaya çıkartılır. Burada tespit edilen farklı noktalar arasındaki uzaklıkların ölçümü kullanılır    
+for j,i in enumerate(train_list):
+    print(j)
+    img = i
+    try:
+        faceLoc = face_recognition.face_locations(img)[0]
+        encode = face_recognition.face_encodings(img)[0]
+        encode_list.append(encode)
+    except:
+        print(j+1,". fotoğrafta yüz tespit edilemedi.")
+
+## Gerçek zamanlı tespit edilecek yüzlerin üzerinde güven skorunu yazdıran parametre
+def swap(img,roi,pre):
+    img = cv2.rectangle(img, roi[0],roi[1], (255,0,0) ,3)
+    text_x = roi[0][0]
+    text_y = roi[0][1]-50
+    cv2.putText(img, str(pre), (text_x,text_y) ,cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 2)
+    return img
+    
+###Verilen yüz fotoğrafının tespit edilmesi istenen kişiye ait olup olmadığını kontrol eden fonskyion
+### pre değişkeni doğruluk değerini ifade eder.
+def calc(roi):
+    encode_test = face_recognition.face_encodings(roi)[0]
+    faceLoc = face_recognition.face_locations(roi)[0]
+    results = face_recognition.compare_faces(encode_list, encode_test)
+    dist = face_recognition.face_distance(encode_list, encode_test)
+    pre = sum(dist) / len(dist) * 100
+    return pre
+    
+#Gerçek zamanlı görüntünün alınıp yüz tespitinin yapıldığı ana kod bloğu
+cap = cv2.VideoCapture(0)
+while (True):
+    ret,frame = cap.read()
+    faces = face_cascade.detectMultiScale(frame, scaleFactor=1.7, minNeighbors=2)
+    h, w, c = frame.shape
+    for (x, y, w, h) in faces:
+        try:
+            roi = frame[y:y + h, x:x + w]
+            roi_list = [(x,y),(x+w,y+h)]
+            pre = calc(roi)
+            show = swap(frame, roi_list, int(pre))
+            print("Farklılık:", pre)
+            cv2.imshow("resim", show)
+            cv2.waitKey(5)
+        except:
+            print("calc failed")
+
+"""Sistemin her seferinde 0'dan eğitim yapmaması sağlanabilir. Özellikle fazla fotoğraf ve yüksek çözünürlükteki fotoğrafların eğitime sokulması eğitim süresini uzatabilir
+Böyle bir durumda eğitimi sağlayan kod bloğu ana kod içerisinde ayrılıp yan bir kod olarak ayarlanır. Eğitim kod bloğu çalıştığında eğitim yine aynı şekilde devam eder
+tek fark olarak kodun sonunda elde edilen encode_list değişkeninin içeriği bir txt dosyasına kaydedilir. ana program içerisinde bu txt dosyasının okunması yeterli olacaktır"""
